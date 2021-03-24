@@ -20,20 +20,22 @@ const CANVAS_SIZE: Size<i32> = Size::new(16, 16);
 fn run() -> Result<()> {
     let (event_loop, mut context) = Context::builder("Mixel").build()?;
     let window_size = context.window_size();
-    let window_size = Size::new(window_size.width, window_size.height);
+    // 2509x2077
+    // eprintln!("{:?}", window_size);
+    // let window_size = Size::new(2509, 2078);
     let mut viewport = Viewport::new(Position::zero(), window_size);
     let mut renderer = Renderer::default(&mut context)?;
-    renderer.pixel_size = 64.0;
+    renderer.pixel_size = 57.0;
 
     // -----------------------------------------------------------------------------
     //     - Canvas -
     // -----------------------------------------------------------------------------
-    let pixel_data = [Pixel::transparent(); (CANVAS_SIZE.width * CANVAS_SIZE.height) as usize];
+    let pixel_data = [Pixel { r: 127, g: 10, b: 158, a: 255 } ; (CANVAS_SIZE.width * CANVAS_SIZE.height) as usize];
     let mut empty_tex = Texture::<i32>::new().with_data(bytemuck::cast_slice(&pixel_data), CANVAS_SIZE);
 
     let mut draw_sprite = Sprite::<i32>::new(empty_tex.size());
     // draw_sprite.z_index = 10;
-    draw_sprite.position = Position::new(1, 1);
+    draw_sprite.position = Position::new(0, 0);
 
     // -----------------------------------------------------------------------------
     //     - Cursor -
