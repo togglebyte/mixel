@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 bytemuck = "1.5.1"
+copypasta = "0.7.1"
 nightmaregl = { path = "../nightmaregl" }

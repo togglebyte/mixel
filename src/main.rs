@@ -1,8 +1,14 @@
-use nightmaregl::events::{Event, EventLoop, Key, KeyState, Modifiers};
-use nightmaregl::texture::{Filter, PixelType, Texture, Wrap};
-use nightmaregl::{Color, Context, Pixel, Position, Renderer, Result, Size, Sprite, Viewport};
+use nightmaregl::events::{Event, EventLoop, Key, KeyState, LoopAction, Modifiers};
+use nightmaregl::text::Text;
+use nightmaregl::texture::{Filter, Texture, Wrap};
+use nightmaregl::{
+    Color, Context, Pixel, Position, Renderer, Result, Size, Sprite, VertexData, Viewport,
+};
 
+mod canvas;
 mod cursor;
+
+use canvas::Canvas;
 use cursor::Cursor;
 
 // -----------------------------------------------------------------------------
@@ -11,127 +17,133 @@ use cursor::Cursor;
 //     on each draw call.
 //
 //     How do we do undo?
-//     Q: How do we represent delted pixels?
+//     Q: How do we represent deleted pixels?
 //     A: Zero the pixel
 // -----------------------------------------------------------------------------
 
-const CANVAS_SIZE: Size<i32> = Size::new(16, 16);
-
 fn run() -> Result<()> {
-    let (event_loop, mut context) = Context::builder("Mixel").build()?;
-    let window_size = context.window_size();
-    // 2509x2077
-    // eprintln!("{:?}", window_size);
-    // let window_size = Size::new(2509, 2078);
-    let mut viewport = Viewport::new(Position::zero(), window_size);
-    let mut renderer = Renderer::default(&mut context)?;
-    renderer.pixel_size = 57.0;
+    let (eventloop, mut context) = Context::builder("Mixel: the modal pixel editor")
+        .vsync(true)
+        .build()?;
+    let mut window_size = context.window_size::<i32>();
+    let mut viewport = Viewport::new(
+        Position::zero(),
+        Size::new(window_size.width, window_size.height),
+    );
+    let mut viewport_text = Viewport::new(
+        Position::zero(),
+        Size::new(window_size.width as f32, window_size.height as f32),
+    );
+
+    let mut editor_renderer = Renderer::<VertexData>::default(&mut context)?;
+    editor_renderer.pixel_size = 32.0;
+
+    let red = Color {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
 
     // -----------------------------------------------------------------------------
     //     - Canvas -
     // -----------------------------------------------------------------------------
-    let pixel_data = [Pixel { r: 127, g: 10, b: 158, a: 255 } ; (CANVAS_SIZE.width * CANVAS_SIZE.height) as usize];
-    let mut empty_tex = Texture::<i32>::new().with_data(bytemuck::cast_slice(&pixel_data), CANVAS_SIZE);
-
-    let mut draw_sprite = Sprite::<i32>::new(empty_tex.size());
-    // draw_sprite.z_index = 10;
-    draw_sprite.position = Position::new(0, 0);
+    let canvas_size = Size::new(32, 32);
+    let mut canvas = Canvas::new(
+        canvas_size,
+        Color {
+            b: 0.5,
+            ..Default::default()
+        },
+    );
+    canvas.move_by(-canvas.sprite.size.to_vector() / 2);
 
     // -----------------------------------------------------------------------------
     //     - Cursor -
     // -----------------------------------------------------------------------------
-    let mut data = vec![Pixel::transparent(); (CANVAS_SIZE.width * CANVAS_SIZE.height) as usize];
-    data[0].r = 255;
-    data[0].a = 255;
-
-    let cursor_texture = Texture::<i32>::new().with_data(bytemuck::cast_slice(&data), CANVAS_SIZE);
-    let mut cursor_sprite = Sprite::new(cursor_texture.size());
-    let mut cursor = Cursor::new();
-    cursor_sprite.position = draw_sprite.position;
-    cursor.position = draw_sprite.position;
+    let mut cursor = Cursor::new(red);
 
     // -----------------------------------------------------------------------------
-    //     - Border -
+    //     - Text / Commands -
     // -----------------------------------------------------------------------------
-    let border_tex = Texture::<i32>::new().with_data(
-        bytemuck::cast_slice(
-            &[Pixel {
-                r: 20,
-                g: 20,
-                b: 40,
-                a: 255,
-            }; 34 * 34],
-        ),
-        [34, 34],
-    );
-    let mut border_sprite = Sprite::new(border_tex.size());
-    // border_sprite.z_index = 11;
-    border_sprite.position = (draw_sprite.position / 2) - Position::new(1, 1);
+    let mut text_renderer = Renderer::default_font(&mut context)?;
+    text_renderer.pixel_size = 1.0;
 
-    event_loop.run(move |event| {
+    let font_size = 18.0;
+    // let mut text = Text::new("/usr/share/fonts/TTF/Hack-Regular.ttf", font_size, &context, window_size.width as u32)?;
+    let mut text = Text::new("/usr/share/fonts/TTF/Hack-Regular.ttf", font_size, &context, 200)?;
+    let mut buf = format!("Hello, world");
+    text.set_text(&buf)?;
+    // text.set_position(-Position::new(window_size.width as f32 / 2.0, window_size.height as f32 / 2.0 - font_size * 2.0));
+
+    eventloop.run(move |event| {
         match event {
+            Event::Char(c) => {
+                if c.is_control() {
+                    return LoopAction::Continue;
+                }
+                buf.push(c);
+                text.set_text(&buf);
+            }
             Event::KeyInput {
                 key,
                 state: KeyState::Pressed,
-                modifiers,
-            } => {
-                if modifiers != Modifiers::empty() {
-                    return false;
+            } => match key {
+                Key::Back => {
+                    buf.pop();
+                    text.set_text(&buf);
                 }
-                match key {
-                    Key::H => { cursor.position.x -= 1; cursor.dirty = true }
-                    Key::J => { cursor.position.y += 1; cursor.dirty = true }
-                    Key::K => { cursor.position.y -= 1; cursor.dirty = true }
-                    Key::L => { cursor.position.x += 1; cursor.dirty = true }
-                    Key::Escape => { return true; }
-                    _ => {}
+                Key::Escape => return LoopAction::Quit,
+                Key::H => {
+                    cursor.sprite.position += Position::new(-1, 0);
                 }
-
-                cursor_sprite.position = cursor.position;// - Position::new(16, 16);
-                cursor_sprite.position.y = -cursor_sprite.position.y;
-            }
-            Event::Resize(new_size) => {
-                viewport.resize(new_size.cast());
-            }
+                Key::J => {
+                    cursor.sprite.position += Position::new(0, -1);
+                }
+                Key::K => {
+                    cursor.sprite.position += Position::new(0, 1);
+                }
+                Key::L => {
+                    cursor.sprite.position += Position::new(1, 0);
+                }
+                Key::Colon => {}
+                Key::Key1 => editor_renderer.pixel_size += 2.0,
+                Key::Key2 => editor_renderer.pixel_size -= 2.0,
+                Key::Space => canvas.draw(cursor.position()),
+                _ => { }
+            },
             Event::Draw => {
-                if cursor.dirty {
-                    empty_tex.write_region(
-                        cursor.position,
-                        Size::new(1, 1),
-                        &[255; 4],
-                        PixelType::Rgba,
-                    );
-                    cursor.dirty = false;
-                }
-
                 context.clear(Color::grey());
-                // renderer.render(
-                //     &border_tex,
-                //     &[border_sprite.vertex_data()],
-                //     &viewport,
-                //     &mut context,
-                // );
-                renderer.render(
-                    &cursor_texture,
-                    &[cursor_sprite.vertex_data()],
+
+                editor_renderer.render(
+                    &canvas.texture,
+                    &[canvas.sprite.vertex_data()],
                     &viewport,
                     &mut context,
                 );
-                renderer.render(
-                    &empty_tex,
-                    &[draw_sprite.vertex_data()],
+
+                editor_renderer.render(
+                    &cursor.texture,
+                    &[cursor.offset_sprite(canvas.sprite.size.to_vector()).vertex_data()],
                     &viewport,
                     &mut context,
                 );
+
+                text_renderer.render(
+                    &text.texture(),
+                    &text.vertex_data(),
+                    &viewport_text,
+                    &mut context,
+                );
+
                 context.swap_buffers();
             }
+            Event::Resize(_new_size) => {}
             _ => {}
         }
 
-        false
+        LoopAction::Continue
     });
-
-    Ok(())
 }
 
 fn main() {
