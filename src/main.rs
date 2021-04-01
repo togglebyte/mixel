@@ -47,17 +47,18 @@ fn run() -> Result<()> {
     let mut renderer = Renderer::default(&mut context)?;
     renderer.pixel_size *= 4.0;
 
-    let texture = Texture::<f32>::from_disk("src/anim.png")?;
+    let texture = Texture::<f32>::from_disk("src/horrid.png")?;
     texture.wrap_x(Wrap::NoWrap);
     texture.wrap_y(Wrap::NoWrap);
     let sprite = {
         let mut s = Sprite::<f32>::new(texture.size());
-        s.size = Size::new(32.0, 32.0);
+        s.size = Size::new(17.0, 13.0);
         s
     };
 
     let mut animation = Animation::new(sprite, 2, 2, 32);
     animation.should_loop = false;
+    animation.fps = 0.0;
 
     let mut counter = 0;
 
@@ -81,8 +82,8 @@ fn run() -> Result<()> {
 
             Event::Draw(dt) => {
                 context.clear(Color::grey());
-                canvas.render(&mut context);
-                commands.render(&mut context);
+                // canvas.render(&mut context);
+                // commands.render(&mut context);
 
                 renderer.render(
                     &texture,
@@ -91,7 +92,6 @@ fn run() -> Result<()> {
                     &mut context
                 );
                 context.swap_buffers();
-                counter += 1;
                 animation.update(dt);
             }
 

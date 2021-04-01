@@ -9,7 +9,7 @@ const FONT_SIZE: f32 = 24.0;
 pub struct CommandInput {
     text: Text,
     renderer: Renderer<VertexData>,
-    viewport: Viewport<f32>,
+    viewport: Viewport,
     enabled: bool,
     visible_text: String,
     text_buffer: String,
@@ -18,19 +18,19 @@ pub struct CommandInput {
 impl CommandInput {
     pub fn new(context: &mut Context) -> Result<Self> {
         let font_path = "/usr/share/fonts/nerd-fonts-complete/TTF/Hack Regular Nerd Font Complete Mono.ttf";
-        let win_size = context.window_size::<f32>();
+        let win_size = context.window_size();
 
         let viewport = Viewport::new(Position::zero(), win_size);
 
         let text = {
             let mut t = Text::from_path(font_path, FONT_SIZE, WordWrap::NoWrap, context)?;
 
-            let x = -win_size.width / 2.0;
-            let y = -win_size.height / 2.0 + FONT_SIZE;
+            let x = -win_size.width / 2;
+            let y = -win_size.height / 2 + FONT_SIZE as i32;
 
             let pos = Position::new(x, y);
 
-            t.position(pos);
+            t.position(pos.cast());
 
             t
         };
@@ -75,9 +75,10 @@ impl CommandInput {
                     return;
                 }
 
-                if !self.text.fits(c, self.viewport.size.width as u32) {
+                if !self.text.fits(c, self.viewport.size().width as u32) {
                     self.visible_text.drain(..1);
                 }
+
                 self.visible_text.push(c);
                 self.text_buffer.push(c);
                 self.text.set_text(&self.visible_text);

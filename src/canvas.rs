@@ -26,7 +26,7 @@ pub struct Canvas {
     cursor_sprite: Sprite<i32>,
     cursor_texture: Texture<i32>,
     pix_buf: Pixels,
-    viewport: Viewport<i32>,
+    viewport: Viewport,
     cursor: Cursor,
 }
 
