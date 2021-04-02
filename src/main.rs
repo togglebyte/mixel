@@ -54,11 +54,11 @@ fn run() -> Result<()> {
     texture.wrap_y(Wrap::NoWrap);
     let sprite = {
         let mut s = Sprite::<f32>::new(texture.size());
-        // s.size = Size::new(16.0, 12.0);
-        // s.texture_offset= Position::new(0.0, 0.0);
+        s.size = Size::new(16.0, 12.0);
+        s.texture_offset= Position::new(0.0, 0.0);
 
-        s.size = Size::new(13.0, 7.0);
-        s.texture_offset= Position::new(16.0, 3.0);
+        // s.size = Size::new(13.0, 7.0);
+        // s.texture_offset= Position::new(16.0, 3.0);
         s
     };
 
