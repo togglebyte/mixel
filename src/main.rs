@@ -1,20 +1,24 @@
+use std::time::Instant;
+
+// TODO: Rename Key in Input to something less generic
 use nightmaregl::events::{Event, Key as WinitKey, KeyState, LoopAction};
-use nightmaregl::{Color, Context, Position, Result, Size, Animation, Sprite, Renderer, Viewport};
+use nightmaregl::{Color, Context, Position, Result, Size, Animation, Sprite, Renderer, Viewport, Rotation};
 use nightmaregl::texture::{Wrap, Texture};
 
 // mod canvas;
-// mod commands;
+mod commands;
 mod input;
+mod lark;
 
 use input::{Input, Key};
 // use canvas::Canvas;
-// use commands::CommandInput;
+use commands::CommandInput;
 
 fn run() -> Result<()> {
     let (eventloop, mut context) = Context::builder("Mixel: the modal pixel editor")
         .vsync(true)
         .resizable(false)
-        .with_size(Size::new(601, 333))
+        .with_size(Size::new(901, 733))
         .build()?;
 
     let window_size = context.window_size::<i32>();
@@ -32,10 +36,10 @@ fn run() -> Result<()> {
     //     &mut context,
     // )?;
 
-    // // -----------------------------------------------------------------------------
-    // //     - Command input -
-    // // -----------------------------------------------------------------------------
-    // let mut commands = CommandInput::new(&mut context)?;
+    // -----------------------------------------------------------------------------
+    //     - Command input -
+    // -----------------------------------------------------------------------------
+    let mut commands = CommandInput::new(&mut context)?;
 
     // -----------------------------------------------------------------------------
     //     - Input -
@@ -45,20 +49,21 @@ fn run() -> Result<()> {
     // -----------------------------------------------------------------------------
     //     - Animation -
     // -----------------------------------------------------------------------------
-    let viewport = Viewport::new(Position::zero(), context.window_size());
+    let mut viewport = Viewport::new(Position::zero(), context.window_size());
     let mut renderer = Renderer::default(&mut context)?;
-    renderer.pixel_size *= 1.0;
+    renderer.pixel_size = 4;
 
     let texture = Texture::<f32>::from_disk("src/horrible.png")?;
     texture.wrap_x(Wrap::NoWrap);
     texture.wrap_y(Wrap::NoWrap);
-    let sprite = {
+    let mut sprite = {
         let mut s = Sprite::<f32>::new(texture.size());
         s.size = Size::new(16.0, 12.0);
-        s.texture_offset= Position::new(0.0, 0.0);
+        let position = Position::new(window_size.width as f32 / renderer.pixel_size as f32, window_size.height as f32 / renderer.pixel_size as f32) / 2.0;
+        s.position = Position::new(position.x as i32 as f32, position.y as i32 as f32);
 
-        // s.size = Size::new(13.0, 7.0);
-        // s.texture_offset= Position::new(16.0, 3.0);
+        s.size = Size::new(13.0, 7.0);
+        s.texture_offset= Position::new(18.0, 4.0);
         s
     };
 
@@ -71,25 +76,34 @@ fn run() -> Result<()> {
     // -----------------------------------------------------------------------------
     //     - Event loop -
     // -----------------------------------------------------------------------------
+    let mut now = Instant::now();
     eventloop.run(move |event| {
         match event {
             Event::Char(c) => {
                 input.update(Key::Char(c));
-                // commands.input(&mut input);
+                commands.input(&mut input);
             }
-            Event::KeyInput {
+            Event::Key {
                 key,
                 state: KeyState::Pressed,
             } => {
                 input.update(Key::Key(key));
                 // canvas.input(&input);
-                // commands.input(&mut input);
+                commands.input(&mut input);
             }
 
             Event::Draw(dt) => {
                 context.clear(Color::grey());
                 // canvas.render(&mut context);
-                // commands.render(&mut context);
+                commands.render(&mut context);
+
+                // -----------------------------------------------------------------------------
+                //     - Nonsense -
+                // -----------------------------------------------------------------------------
+                let t = now.elapsed().as_secs_f32();
+                sprite.position.x += t.sin() * 0.3;
+                sprite.position.y += t.cos() * 0.3;
+                sprite.rotation = Rotation::radians(t);
 
                 let res = renderer.render(
                     &texture,
@@ -106,7 +120,7 @@ fn run() -> Result<()> {
                 // animation.update(dt);
             }
 
-            Event::Resize(_new_size) => {}
+            Event::Resize(new_size) => viewport.resize(new_size),
             _ => {}
         }
 
