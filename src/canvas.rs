@@ -3,12 +3,8 @@ use nightmaregl::{
     Viewport,
 };
 
-use crate::input::{Action, Input};
-
-enum Mode {
-    Normal,
-    Insert
-}
+use crate::input::{Input, InputHandler, Action};
+use crate::Mode;
 
 struct Cursor {
     position: Position<i32>,
@@ -40,13 +36,13 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub fn new(
-        window_size: Size<i32>,
-        size: Size<i32>,
-        background_color: Color,
-        context: &mut Context,
-    ) -> Result<Self> {
+    pub fn new(window_size: Size<i32>, size: Size<i32>, context: &mut Context) -> Result<Self> {
         let viewport = Viewport::new(Position::zero(), window_size);
+
+        let background_color = Color {
+            b: 0.5,
+            ..Default::default()
+        };
 
         // Main canvas texture
         let texture = {
@@ -65,7 +61,8 @@ impl Canvas {
 
         let mut sprite = Sprite::new(texture.size());
         sprite.z_index = 10;
-        sprite.position = window_size.to_vector() / 2 / renderer.pixel_size as i32 - sprite.size.to_vector() / 2;
+        sprite.position =
+            window_size.to_vector() / 2 / renderer.pixel_size as i32 - sprite.size.to_vector() / 2;
 
         let mut cursor_sprite = sprite;
         cursor_sprite.z_index = 9;
@@ -93,17 +90,6 @@ impl Canvas {
         let vertex_data = [self.cursor_sprite.vertex_data()];
         self.renderer
             .render(&self.cursor_texture, &vertex_data, &self.viewport, context);
-    }
-
-    pub fn input(&mut self, input: &mut Input) {
-        match input.action() {
-            None => return,
-            Some(Action::Left) => self.move_cursor(Position::new(-1, 0)),
-            Some(Action::Right) => self.move_cursor(Position::new(1, 0)),
-            Some(Action::Up) => self.move_cursor(Position::new(0, -1)),
-            Some(Action::Down) => self.move_cursor(Position::new(0, 1)),
-            _ => return,
-        }
     }
 
     pub fn move_cursor(&mut self, move_by: Position<i32>) {
@@ -134,5 +120,41 @@ impl Canvas {
         self.texture
             .write_region(draw_at, Size::new(1, 1), self.pix_buf.as_bytes());
         self.pix_buf.clear();
+    }
+}
+
+// -----------------------------------------------------------------------------
+//     - Input handling -
+// -----------------------------------------------------------------------------
+impl Input for Canvas {
+    fn input(&mut self, c: char, mode: Mode, input: &InputHandler) {
+        match mode {
+            Mode::Command => return,
+            Mode::Normal | Mode::Visual | Mode::Insert => {
+                let action = input.to_action(c, mode);
+                match action {
+                    Some(Action::Left) => self.move_cursor(Position::new(-1, 0)),
+                    Some(Action::Right) => self.move_cursor(Position::new(1, 0)),
+                    Some(Action::Up) => self.move_cursor(Position::new(0, -1)),
+                    Some(Action::Down) => self.move_cursor(Position::new(0, 1)),
+                    _ => {}
+                }
+            }
+        }
+
+        if let Mode::Insert = mode {
+            self.draw();
+        }
+
+        // TODO: need something that can map a char to an action
+
+        // match input.action() {
+        //     None => return,
+        //     Some(Action::Left) => self.move_cursor(Position::new(-1, 0)),
+        //     Some(Action::Right) => self.move_cursor(Position::new(1, 0)),
+        //     Some(Action::Up) => self.move_cursor(Position::new(0, -1)),
+        //     Some(Action::Down) => self.move_cursor(Position::new(0, 1)),
+        //     _ => return,
+        // }
     }
 }

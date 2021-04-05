@@ -1,16 +1,16 @@
 use std::time::Instant;
 
-use nightmaregl::events::{Event, Key as WinitKey, KeyState, LoopAction};
-use nightmaregl::{Color, Context, Position, Result, Size, Animation, Sprite, Renderer, Viewport, Rotation};
-use nightmaregl::texture::{Wrap, Texture};
+use anyhow::Result;
+use nightmaregl::events::{Event, LoopAction};
+use nightmaregl::{Color, Context, Size};
 
+mod application;
 mod canvas;
 mod commands;
 mod input;
 
+pub use application::{App, Mode};
 use input::Input;
-use canvas::Canvas;
-use commands::CommandInput;
 
 fn run() -> Result<()> {
     let (eventloop, mut context) = Context::builder("Mixel: the modal pixel editor")
@@ -19,30 +19,10 @@ fn run() -> Result<()> {
         .with_size(Size::new(901, 733))
         .build()?;
 
-    let window_size = context.window_size::<i32>();
-
     // -----------------------------------------------------------------------------
-    //     - Canvas -
+    //     - App -
     // -----------------------------------------------------------------------------
-    let mut canvas = Canvas::new(
-        window_size,
-        Size::new(32, 32),
-        Color {
-            b: 0.5,
-            ..Default::default()
-        },
-        &mut context,
-    )?;
-
-    // -----------------------------------------------------------------------------
-    //     - Command input -
-    // -----------------------------------------------------------------------------
-    let mut commands = CommandInput::new(&mut context)?;
-
-    // -----------------------------------------------------------------------------
-    //     - Input -
-    // -----------------------------------------------------------------------------
-    let mut input = Input::new();
+    let mut app = App::new(&mut context)?;
 
     // -----------------------------------------------------------------------------
     //     - Event loop -
@@ -51,27 +31,19 @@ fn run() -> Result<()> {
     eventloop.run(move |event| {
         match event {
             Event::Char(c) => {
-                input.update(c);
-                commands.input(&mut input);
-                canvas.input(&mut input);
+                app.update_input(c);
+                app.input(c);
             }
-            Event::Key {
-                key,
-                state,
-            } => {
-                input.update_modifier(key, state);
-            }
+
+            Event::Key { key, state } => app.update_modifier(key, state),
 
             Event::Draw(dt) => {
                 context.clear(Color::grey());
-                canvas.render(&mut context);
-                commands.render(&mut context);
+                app.render(&mut context);
                 context.swap_buffers();
             }
 
-            Event::Resize(new_size) => {
-                // TODO: resize canvas and input
-            }
+            Event::Resize(new_size) => app.resize(new_size),
             _ => {}
         }
 
@@ -82,6 +54,6 @@ fn run() -> Result<()> {
 fn main() {
     let result = run();
     if let Err(e) = result {
-        eprintln!("{:?}", e);
+        eprintln!("Application error: {:?}", e);
     }
 }

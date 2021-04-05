@@ -1,8 +1,8 @@
 use nightmaregl::{Position, VertexData, Result, Context, Renderer, Viewport, Sprite, Texture, Pixels, Pixel, Size};
 use nightmaregl::text::{WordWrap, Text};
-use nightmaregl::events::Key;
 
-use crate::input::{Input, Action};
+use crate::input::{Input, InputHandler};
+use crate::Mode;
 
 const FONT_SIZE: f32 = 18.0;
 
@@ -89,54 +89,9 @@ impl CommandInput {
 
     }
 
-    pub fn input(&mut self, input: &mut Input) {
-        match input.action() {
-            None => {},
-            Some(Action::CommandInput) if !self.enabled => self.enabled = true,
-            None | Some(_) if !self.enabled => return,
-            Some(Action::CloseCommandInput) => {
-                self.enabled = false;
-                self.text_buffer.clear();
-                self.visible_text.clear();
-                return;
-            }
-            Some(_) => { }
-        }
-
-        if !self.enabled {
+    pub fn render(&self, context: &mut Context, mode: Mode) {
+        if !mode.command_mode() {
             return
-        }
-
-
-        match input.take() {
-            Some('\u{8}') => {
-                self.text_buffer.pop();
-                self.visible_text = self.text_buffer.clone();
-                self.update_text();
-            }
-            Some('\r') => {
-                self.visible_text.clear();
-                self.text_buffer.clear();
-                self.text.set_text(String::new());
-                self.enabled = false;
-            }
-            Some(c) => {
-                if c.is_control() {
-                    return;
-                }
-
-                self.visible_text.push(c);
-                self.text_buffer.push(c);
-                self.update_text();
-            }
-            None => return,
-            _ => {}
-        }
-    }
-
-    pub fn render(&self, context: &mut Context) {
-        if !self.enabled {
-            return;
         }
 
         self.text_renderer.render(
@@ -154,4 +109,39 @@ impl CommandInput {
         );
     }
 
+}
+
+// -----------------------------------------------------------------------------
+//     - Input handling -
+// -----------------------------------------------------------------------------
+impl Input for CommandInput {
+    fn input(&mut self, c: char, mode: Mode, input: &InputHandler) {
+        match mode {
+            Mode::Command => {},
+            Mode::Insert | Mode::Normal | Mode::Visual => return,
+        }
+
+        match c {
+            // Backspace
+            '\u{8}' => {
+                self.text_buffer.pop();
+                self.visible_text = self.text_buffer.clone();
+                self.update_text();
+            }
+            // Enter
+            '\r' => {
+                self.visible_text.clear();
+                self.text_buffer.clear();
+                self.text.set_text(String::new());
+                self.enabled = false;
+            }
+            // Character input
+            c => if !c.is_control() {
+                self.visible_text.push(c);
+                self.text_buffer.push(c);
+                self.update_text();
+            }
+            _ => {}
+        }
+    }
 }

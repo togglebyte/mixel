@@ -1,11 +1,16 @@
+use std::collections::HashMap;
 use std::fs::read_to_string;
-use serde::Deserialize;
+
+use anyhow::Result;
 use nightmaregl::events::{Key, KeyState};
+use serde::Deserialize;
+
+use crate::Mode;
 
 // -----------------------------------------------------------------------------
 //     - Actions -
 // -----------------------------------------------------------------------------
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Action {
     Left,
     Right,
@@ -14,6 +19,19 @@ pub enum Action {
     Draw,
     CommandInput,
     CloseCommandInput,
+    Noop,
+}
+
+impl Action {
+    fn from_str(s: &str) -> Action {
+        match s.to_ascii_lowercase().as_ref() {
+            "left" => Action::Left,
+            "right" => Action::Right,
+            "up" => Action::Up,
+            "down" => Action::Down,
+            _ => Action::Noop,
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -29,27 +47,29 @@ pub enum InputMode {
 //     - Input -
 // -----------------------------------------------------------------------------
 #[derive(Debug)]
-pub struct Input {
-    key: Option<char>,
+pub struct InputHandler {
+    pub key: Option<char>,
+    pub ctrl: bool,
     input_map: InputMap,
     state: KeyState,
-    ctrl: bool,
 }
 
-impl Input {
-    pub fn new() -> Self {
-        Self {
+impl InputHandler {
+    pub fn new() -> Result<Self> {
+        let inst = Self {
             key: None,
-            input_map: InputMap::new(),
+            input_map: InputMap::new()?,
             state: KeyState::Released,
             ctrl: false,
-        }
+        };
+
+        Ok(inst)
     }
 
     pub fn update(&mut self, c: char) {
         self.key = Some(c);
     }
-    
+
     pub fn update_modifier(&mut self, key: Key, state: KeyState) {
         match (key, state) {
             (Key::LControl, KeyState::Pressed) => self.ctrl = true,
@@ -70,9 +90,8 @@ impl Input {
         new_val
     }
 
-    pub fn action(&self) -> Option<Action> {
-        None
-        // self.input_map.map_input(self.key)
+    pub fn to_action(&self, c: char, mode: Mode) -> Option<Action> {
+        self.input_map.map_input(c, mode, self.ctrl)
     }
 
     pub fn consume(&mut self) {
@@ -83,36 +102,79 @@ impl Input {
 // -----------------------------------------------------------------------------
 //     - Input map -
 // -----------------------------------------------------------------------------
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct InputMap {
-    keys: Keys,
+    normal: KeyMap,
+    insert: KeyMap,
+    visual: KeyMap,
 }
 
 impl InputMap {
-    pub fn new() -> Self {
-        let config = read_to_string("config.toml").unwrap();
-        toml::from_str(&config).unwrap()
+    pub fn new() -> Result<Self> {
+        let config = read_to_string("config.toml")?;
+        let cfg: toml::Value = toml::from_str(&config)?;
+
+        let inst = InputMap {
+            normal: KeyMap::from_val(cfg.get("normal").map(toml::Value::to_owned)),
+            insert: KeyMap::from_val(cfg.get("insert").map(toml::Value::to_owned)),
+            visual: KeyMap::from_val(cfg.get("visual").map(toml::Value::to_owned)),
+        };
+
+        Ok(inst)
     }
 
-    fn map_input(&self, c: char) -> Option<Action> {
-        match c {
-            'h' => Some(Action::Left),
-            'j' => Some(Action::Down),
-            'k' => Some(Action::Up),
-            'l' => Some(Action::Right),
-            ' ' => Some(Action::Draw),
-            ':' => Some(Action::CommandInput),
-            _ => None,
+    fn map_input(&self, c: char, mode: Mode, ctrl: bool) -> Option<Action> {
+        match mode {
+            Mode::Insert => self.insert.map_input(c, ctrl),
+            Mode::Normal => self.normal.map_input(c, ctrl),
+            Mode::Visual => self.visual.map_input(c, ctrl),
+            Mode::Command => return None,
         }
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct Keys {
-    left: String,
-    up: String,
-    down: String,
-    right: String,
-    ex: String,
-    insert: String,
+#[derive(Debug)]
+struct KeyMap(HashMap<char, Action>);
+
+impl KeyMap {
+    fn map_input(&self, c: char, ctrl: bool) -> Option<Action> {
+        self.0.get(&c).map(|a| *a)
+    }
+
+    fn from_val(mut val: Option<toml::Value>) -> KeyMap {
+        let mut key_values = HashMap::new();
+        let mut val = match val.take() {
+            Some(v) => v,
+            None => return KeyMap(key_values),
+        };
+
+        let mut table = match val.as_table_mut() {
+            Some(t) => t,
+            None => return KeyMap(key_values),
+        };
+
+        // -----------------------------------------------------------------------------
+        //     - This is a hot mess -
+        //     This should be fixed:
+        //     * keys should not be chars, but rather virtual keycodes
+        // -----------------------------------------------------------------------------
+        for (k, v) in table
+            .iter_mut()
+            .filter(|(_, v)| v.is_str())
+            .map(|(k, v)| (k, v.as_str().unwrap().to_owned()))
+        {
+            let action = Action::from_str(&k);
+            let c = v.chars().next().unwrap();
+            key_values.insert(c, action);
+        }
+
+        KeyMap(key_values)
+    }
+}
+
+// -----------------------------------------------------------------------------
+//     - Input handler -
+// -----------------------------------------------------------------------------
+pub trait Input {
+    fn input(&mut self, c: char, mode: Mode, input: &InputHandler);
 }

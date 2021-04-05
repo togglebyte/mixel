@@ -1,7 +1,19 @@
-[keys]
-left    = "<C-h>"
+[normal]
+left    = "h"
 right   = "l"
-up      = "K"
+up      = "k"
 down    = "j"
 ex      = ":"
 insert  = "i"
+
+[insert]
+left    = "h"
+right   = "l"
+up      = "k"
+down    = "j"
+
+[visual]
+left    = "h"
+right   = "l"
+up      = "k"
+down    = "j"
