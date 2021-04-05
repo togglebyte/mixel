@@ -10,3 +10,5 @@ edition = "2018"
 bytemuck = "1.5.1"
 copypasta = "0.7.1"
 nightmaregl = { path = "../nightmaregl" }
+serde = { version = "1.0.125", features = ["derive"] }
+toml = "0.5.8"

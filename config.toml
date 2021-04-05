@@ -1,0 +1,7 @@
+[keys]
+left    = "<C-h>"
+right   = "l"
+up      = "K"
+down    = "j"
+ex      = ":"
+insert  = "i"

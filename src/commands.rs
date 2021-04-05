@@ -1,8 +1,8 @@
 use nightmaregl::{Position, VertexData, Result, Context, Renderer, Viewport, Sprite, Texture, Pixels, Pixel, Size};
 use nightmaregl::text::{WordWrap, Text};
-use nightmaregl::events::Key as WinitKey;
+use nightmaregl::events::Key;
 
-use crate::input::{Input, Action, Key};
+use crate::input::{Input, Action};
 
 const FONT_SIZE: f32 = 18.0;
 
@@ -107,9 +107,20 @@ impl CommandInput {
             return
         }
 
-        let key = input.take();
-        match key {
-            Key::Char(c) => {
+
+        match input.take() {
+            Some('\u{8}') => {
+                self.text_buffer.pop();
+                self.visible_text = self.text_buffer.clone();
+                self.update_text();
+            }
+            Some('\r') => {
+                self.visible_text.clear();
+                self.text_buffer.clear();
+                self.text.set_text(String::new());
+                self.enabled = false;
+            }
+            Some(c) => {
                 if c.is_control() {
                     return;
                 }
@@ -118,18 +129,7 @@ impl CommandInput {
                 self.text_buffer.push(c);
                 self.update_text();
             }
-            Key::Key(WinitKey::Back) => {
-                self.text_buffer.pop();
-                self.visible_text = self.text_buffer.clone();
-                self.update_text();
-            }
-            Key::Key(WinitKey::Return) => {
-                self.visible_text.clear();
-                self.text_buffer.clear();
-                self.text.set_text(String::new());
-                self.enabled = false;
-            }
-            Key::Empty => return,
+            None => return,
             _ => {}
         }
     }

@@ -1,8 +1,11 @@
-use nightmaregl::events::Key as WinitKey;
+use std::fs::read_to_string;
+use serde::Deserialize;
+use nightmaregl::events::{Key, KeyState};
 
 // -----------------------------------------------------------------------------
 //     - Actions -
 // -----------------------------------------------------------------------------
+#[derive(Debug)]
 pub enum Action {
     Left,
     Right,
@@ -23,75 +26,93 @@ pub enum InputMode {
 }
 
 // -----------------------------------------------------------------------------
-//     - Key input -
-//     So we can overwrite the `Key` in case of a char
-// -----------------------------------------------------------------------------
-#[derive(Debug, Copy, Clone)]
-pub enum Key {
-    Key(WinitKey),
-    Char(char),
-    Empty,
-}
-
-// -----------------------------------------------------------------------------
 //     - Input -
 // -----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Input {
-    key: Key,
+    key: Option<char>,
     input_map: InputMap,
+    state: KeyState,
+    ctrl: bool,
 }
 
 impl Input {
     pub fn new() -> Self {
         Self {
-            key: Key::Empty,
+            key: None,
             input_map: InputMap::new(),
+            state: KeyState::Released,
+            ctrl: false,
         }
     }
 
-    pub fn update(&mut self, value: Key) {
-        self.key = value;
+    pub fn update(&mut self, c: char) {
+        self.key = Some(c);
+    }
+    
+    pub fn update_modifier(&mut self, key: Key, state: KeyState) {
+        match (key, state) {
+            (Key::LControl, KeyState::Pressed) => self.ctrl = true,
+            (Key::RControl, KeyState::Pressed) => self.ctrl = true,
+            _ => {}
+        }
+
+        match (state, key) {
+            (KeyState::Released, Key::LControl) => self.ctrl = false,
+            (KeyState::Released, Key::RControl) => self.ctrl = false,
+            _ => return,
+        }
     }
 
-    pub fn take(&mut self) -> Key {
-        let mut key = Key::Empty;
-        std::mem::swap(&mut self.key, &mut key);
-        key
+    pub fn take(&mut self) -> Option<char> {
+        let mut new_val = None;
+        std::mem::swap(&mut self.key, &mut new_val);
+        new_val
     }
 
     pub fn action(&self) -> Option<Action> {
-        self.input_map.map(self.key)
+        None
+        // self.input_map.map_input(self.key)
     }
 
     pub fn consume(&mut self) {
-        self.key = Key::Empty;
+        self.key = None;
     }
 }
 
 // -----------------------------------------------------------------------------
 //     - Input map -
 // -----------------------------------------------------------------------------
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct InputMap {
+    keys: Keys,
 }
 
 impl InputMap {
     pub fn new() -> Self {
-        Self {
-            
-        }
+        let config = read_to_string("config.toml").unwrap();
+        toml::from_str(&config).unwrap()
     }
 
-    fn map(&self, key: Key) -> Option<Action> {
-        match key {
-            Key::Char('h') => Some(Action::Left),
-            Key::Char('j') => Some(Action::Down),
-            Key::Char('k') => Some(Action::Up),
-            Key::Char('l') => Some(Action::Right),
-            Key::Key(WinitKey::Space) => Some(Action::Draw),
-            Key::Key(WinitKey::Colon) => Some(Action::CommandInput),
+    fn map_input(&self, c: char) -> Option<Action> {
+        match c {
+            'h' => Some(Action::Left),
+            'j' => Some(Action::Down),
+            'k' => Some(Action::Up),
+            'l' => Some(Action::Right),
+            ' ' => Some(Action::Draw),
+            ':' => Some(Action::CommandInput),
             _ => None,
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct Keys {
+    left: String,
+    up: String,
+    down: String,
+    right: String,
+    ex: String,
+    insert: String,
 }
