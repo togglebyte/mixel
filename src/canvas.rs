@@ -67,7 +67,7 @@ impl Canvas {
         let mut cursor_sprite = sprite;
         cursor_sprite.z_index = 9;
 
-        let inst = Self {
+        let mut inst = Self {
             texture,
             cursor_texture,
             sprite,
@@ -78,6 +78,10 @@ impl Canvas {
             cursor: Cursor::new(),
             mode: Mode::Normal,
         };
+
+        // Position the cursor or it won't be 
+        // drawn until it moves fors the first time.
+        inst.move_cursor(Position::zero());
 
         Ok(inst)
     }
@@ -146,15 +150,5 @@ impl Input for Canvas {
             self.draw();
         }
 
-        // TODO: need something that can map a char to an action
-
-        // match input.action() {
-        //     None => return,
-        //     Some(Action::Left) => self.move_cursor(Position::new(-1, 0)),
-        //     Some(Action::Right) => self.move_cursor(Position::new(1, 0)),
-        //     Some(Action::Up) => self.move_cursor(Position::new(0, -1)),
-        //     Some(Action::Down) => self.move_cursor(Position::new(0, 1)),
-        //     _ => return,
-        // }
     }
 }
