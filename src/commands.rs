@@ -1,10 +1,22 @@
-use nightmaregl::{Position, VertexData, Result, Context, Renderer, Viewport, Sprite, Texture, Pixels, Pixel, Size};
-use nightmaregl::text::{WordWrap, Text};
+use nightmaregl::text::{Text, WordWrap};
+use nightmaregl::{
+    Context, Pixel, Pixels, Position, Renderer, Result, Size, Sprite, Texture, VertexData, Viewport,
+};
 
-use crate::input::{Input, InputHandler};
+use crate::input::InputHandler;
 use crate::Mode;
 
 const FONT_SIZE: f32 = 18.0;
+
+// -----------------------------------------------------------------------------
+//     - Commands -
+// -----------------------------------------------------------------------------
+#[derive(Debug)]
+pub enum Command {
+    Quit,
+    Write(String),
+    Noop,
+}
 
 // -----------------------------------------------------------------------------
 //     - Cursor -
@@ -20,10 +32,7 @@ impl Cursor {
         let texture = Texture::default_with_data(size.cast(), pixels.as_bytes());
         let sprite = Sprite::new(texture.size());
 
-        Self {
-            sprite,
-            texture,
-        }
+        Self { sprite, texture }
     }
 }
 
@@ -43,7 +52,8 @@ pub struct CommandInput {
 
 impl CommandInput {
     pub fn new(context: &mut Context) -> Result<Self> {
-        let font_path = "/usr/share/fonts/nerd-fonts-complete/TTF/Hack Regular Nerd Font Complete Mono.ttf";
+        let font_path =
+            "/usr/share/fonts/nerd-fonts-complete/TTF/Hack Regular Nerd Font Complete Mono.ttf";
         let win_size = context.window_size();
 
         let viewport = Viewport::new(Position::zero(), win_size);
@@ -77,7 +87,9 @@ impl CommandInput {
     fn update_text(&mut self) {
         self.text.set_text(&self.visible_text);
 
-        while self.text.caret().x + self.cursor.sprite.size.width > self.viewport.size().width as f32 {
+        while self.text.caret().x + self.cursor.sprite.size.width
+            > self.viewport.size().width as f32
+        {
             if self.visible_text.is_empty() {
                 return;
             }
@@ -86,39 +98,41 @@ impl CommandInput {
         }
 
         self.cursor.sprite.position = Position::new(self.text.caret().x, FONT_SIZE / 3.0);
-
     }
 
     pub fn render(&self, context: &mut Context, mode: Mode) {
         if !mode.command_mode() {
-            return
+            return;
         }
 
-        self.text_renderer.render(
+        let res = self.text_renderer.render(
             self.text.texture(),
             &self.text.vertex_data(),
             &self.viewport,
-            context
+            context,
         );
 
-        self.cursor_renderer.render(
+        if let Err(e) = res {
+            eprintln!("text renderer: {:?}", e);
+        }
+
+        let res = self.cursor_renderer.render(
             &self.cursor.texture,
             &[self.cursor.sprite.vertex_data()],
             &self.viewport,
-            context
+            context,
         );
+
+        if let Err(e) = res {
+            eprintln!("cursor renderer: {:?}", e);
+        }
+
     }
 
-}
-
-// -----------------------------------------------------------------------------
-//     - Input handling -
-// -----------------------------------------------------------------------------
-impl Input for CommandInput {
-    fn input(&mut self, c: char, mode: Mode, input: &InputHandler) {
+    pub fn input(&mut self, c: char, mode: Mode, input: &InputHandler) -> Command {
         match mode {
-            Mode::Command => {},
-            Mode::Insert | Mode::Normal | Mode::Visual => return,
+            Mode::Command => {}
+            Mode::Insert | Mode::Normal | Mode::Visual => return Command::Noop,
         }
 
         match c {
@@ -131,17 +145,42 @@ impl Input for CommandInput {
             // Enter
             '\r' => {
                 self.visible_text.clear();
-                self.text_buffer.clear();
+                let raw_command = self.text_buffer.drain(..).collect();
+                let command = parse_command(raw_command);
                 self.text.set_text(String::new());
                 self.enabled = false;
+                return command;
             }
             // Character input
-            c => if !c.is_control() {
-                self.visible_text.push(c);
-                self.text_buffer.push(c);
-                self.update_text();
+            c => {
+                if !c.is_control() {
+                    self.visible_text.push(c);
+                    self.text_buffer.push(c);
+                    self.update_text();
+                }
             }
             _ => {}
         }
+
+        Command::Noop
     }
+}
+
+fn parse_command(s: String) -> Command {
+    if s == ":q" {
+        return Command::Quit;
+    }
+
+    if s.starts_with(":w") {
+        return Command::Write(
+            s.split_whitespace()
+                .skip(1)
+                .take(1)
+                .collect::<String>()
+                .trim()
+                .to_string()
+        );
+    }
+
+    Command::Noop
 }

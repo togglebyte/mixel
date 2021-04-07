@@ -171,10 +171,3 @@ impl KeyMap {
         KeyMap(key_values)
     }
 }
-
-// -----------------------------------------------------------------------------
-//     - Input handler -
-// -----------------------------------------------------------------------------
-pub trait Input {
-    fn input(&mut self, c: char, mode: Mode, input: &InputHandler);
-}

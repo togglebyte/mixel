@@ -3,8 +3,8 @@ use nightmaregl::events::{Key, KeyState};
 use nightmaregl::{Context, Size};
 
 use crate::canvas::Canvas;
-use crate::commands::CommandInput;
-use crate::input::{Input, InputHandler};
+use crate::commands::{Command, CommandInput};
+use crate::input::InputHandler;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Mode {
@@ -61,7 +61,7 @@ impl App {
 
     pub fn resize(&mut self, new_size: Size<u32>) {}
 
-    pub fn update_input(&mut self, c: char) {
+    pub fn update_input(&mut self, c: char) -> Command {
         self.input.update(c);
 
         match self.mode {
@@ -104,7 +104,11 @@ impl App {
                 match c {
                     // Enter
                     '\r' => {
-                        self.command_input.input(c, self.mode, &self.input);
+                        let command = self.command_input.input(c, self.mode, &self.input);
+                        if let Command::Quit = command {
+                            return Command::Quit;
+                        }
+                        self.canvas.exec(command);
                         self.mode = Mode::Normal;
                     }
                     // Esc
@@ -116,6 +120,8 @@ impl App {
                 }
             }
         }
+
+        Command::Noop
     }
 
     pub fn render(&mut self, context: &mut Context) {

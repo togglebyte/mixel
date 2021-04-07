@@ -9,8 +9,8 @@ mod canvas;
 mod commands;
 mod input;
 
+use commands::Command;
 pub use application::{App, Mode};
-use input::Input;
 
 fn run() -> Result<()> {
     let (eventloop, mut context) = Context::builder("Mixel: the modal pixel editor")
@@ -31,7 +31,9 @@ fn run() -> Result<()> {
     eventloop.run(move |event| {
         match event {
             Event::Char(c) => {
-                app.update_input(c);
+                if let Command::Quit = app.update_input(c) {
+                    return LoopAction::Quit;
+                }
                 app.input(c);
             }
 
