@@ -61,7 +61,7 @@ impl App {
 
     pub fn resize(&mut self, new_size: Size<u32>) {}
 
-    pub fn update_input(&mut self, c: char) -> Command {
+    pub fn update_input(&mut self, c: char, context: &mut Context) -> Command {
         self.input.update(c);
 
         match self.mode {
@@ -108,7 +108,7 @@ impl App {
                         if let Command::Quit = command {
                             return Command::Quit;
                         }
-                        self.canvas.exec(command);
+                        self.canvas.exec(command, context);
                         self.mode = Mode::Normal;
                     }
                     // Esc

@@ -46,17 +46,25 @@ impl SaveBuffer {
             .with_no_data(size);
     }
 
-    fn save(&self, sprite: &Sprite<i32>, textures: &[Texture<i32>], viewport: &Viewport, path: impl AsRef<Path>, context: &mut Context) {
+    fn save(
+        &self,
+        sprite: &Sprite<i32>,
+        textures: &[Texture<i32>],
+        viewport: &Viewport,
+        path: impl AsRef<Path>,
+        context: &mut Context,
+    ) -> Result<()> {
         self.fb.bind();
         textures.into_iter().for_each(|t| {
-            self.renderer.render(
-                t,
-                &[sprite.vertex_data()],
-                viewport,
-                context,
-            );
+            self.renderer
+                .render(t, &[self.sprite.vertex_data()], viewport, context);
         });
+
+        let res = self.texture.write_to_disk(path.as_ref());
+
         self.fb.unbind();
+
+        res
     }
 }
 
@@ -78,8 +86,9 @@ impl Cursor {
 }
 
 pub struct Canvas {
-    pub texture: Texture<i32>,
-    pub renderer: Renderer<VertexData>,
+    textures: Vec<Texture<i32>>,
+    layer: usize,
+    renderer: Renderer<VertexData>,
     sprite: Sprite<i32>,
     cursor_sprite: Sprite<i32>,
     cursor_texture: Texture<i32>,
@@ -87,25 +96,23 @@ pub struct Canvas {
     viewport: Viewport,
     cursor: Cursor,
     mode: Mode,
-    fb: Option<(Framebuffer, Texture<i32>, Sprite<i32>)>,
-    should_save: bool,
+    save_buffer: SaveBuffer,
 }
 
 impl Canvas {
     pub fn new(window_size: Size<i32>, size: Size<i32>, context: &mut Context) -> Result<Self> {
         let viewport = Viewport::new(Position::zero(), window_size);
 
-        let background_color: Color = Pixel {
+        let background_color: Pixel = Pixel {
             r: 12,
             g: 34,
             b: 56,
             a: 255,
-        }
-        .into();
-        eprintln!("{:?}", background_color);
+        };
 
         // Main canvas texture
         let texture = {
+            eprintln!("{:?}", background_color);
             let pixels = Pixels::from_pixel(background_color.into(), size.cast());
             Texture::default_with_data(size, pixels.as_bytes())
         };
@@ -127,8 +134,11 @@ impl Canvas {
         let mut cursor_sprite = sprite;
         cursor_sprite.z_index = 9;
 
+        let save_buffer = SaveBuffer::new(size, context)?;
+
         let mut inst = Self {
-            texture,
+            textures: vec![texture],
+            layer: 0,
             cursor_texture,
             sprite,
             cursor_sprite,
@@ -137,8 +147,7 @@ impl Canvas {
             renderer,
             cursor: Cursor::new(),
             mode: Mode::Normal,
-            fb: None,
-            should_save: false,
+            save_buffer,
         };
 
         // Position the cursor or it won't be
@@ -150,47 +159,27 @@ impl Canvas {
 
     pub fn render(&mut self, context: &mut Context) {
         let vertex_data = [self.sprite.vertex_data()];
-        let cursor_vertex_data = [self.cursor_sprite.vertex_data()];
 
-        // Horrible saving code
-        if let Some(ref mut fb) = self.fb {
-            let (fb, fb_texture, fb_sprite) = fb;
-            fb.bind();
+        self.textures.iter().for_each(|t| {
+            let res = self
+                .renderer
+                .render(t, &vertex_data, &self.viewport, context);
 
-            // Draw the pixels
-            self.renderer
-                .render(&self.texture, &vertex_data, &self.viewport, context);
-
-            fb.unbind();
-
-            // Draw the cursor
-            self.renderer.render(
-                &self.cursor_texture,
-                &cursor_vertex_data,
-                &self.viewport,
-                context,
-            );
-
-            // Draw the framebuffer texture
-            self.renderer.render(
-                fb_texture,
-                &[fb_sprite.vertex_data()],
-                &self.viewport,
-                context,
-            );
-
-            if self.should_save {
-                self.should_save = false;
-                fb_texture.write_to_disk("test.png");
+            if let Err(e) = res {
+                eprintln!("canvas render: {:?}", e);
             }
+        });
+
+        let res = self.renderer.render(
+            &self.cursor_texture,
+            &[self.cursor_sprite.vertex_data()],
+            &self.viewport,
+            context,
+        );
+
+        if let Err(e) = res {
+            eprintln!("cursor render: {:?}", e);
         }
-
-        // self.renderer
-        //     .render(&self.texture, &vertex_data, &self.viewport, context);
-
-        // let vertex_data = [self.cursor_sprite.vertex_data()];
-        // self.renderer
-        //     .render(&self.cursor_texture, &vertex_data, &self.viewport, context);
     }
 
     pub fn move_cursor(&mut self, move_by: Position<i32>) {
@@ -218,8 +207,8 @@ impl Canvas {
         let draw_at = self.cursor.position;
         let pixel = Color::white().into();
         self.pix_buf.push(pixel);
-        self.texture
-            .write_region(draw_at, Size::new(1, 1), self.pix_buf.as_bytes());
+        let texture = &self.textures[self.layer];
+        texture.write_region(draw_at, Size::new(1, 1), self.pix_buf.as_bytes());
         self.pix_buf.clear();
     }
 
@@ -249,24 +238,20 @@ impl Canvas {
     //     * Set the framebuffer texture to the same size as the textures to save
     //     * Set the framebuffer sprite to the same size as the textures to save
     // -----------------------------------------------------------------------------
-    pub fn exec(&mut self, command: Command) {
-        let pixels = Pixels::from_pixel(
-            Pixel {
-                r: 0,
-                ..Default::default()
-            },
-            self.texture.size().cast(),
-        );
+    pub fn exec(&mut self, command: Command, context: &mut Context) {
+        match command {
+            Command::Write(path) => {
+                let res = self.save_buffer.save(
+                    &self.sprite,
+                    &self.textures,
+                    &self.viewport,
+                    path,
+                    context
+                );
 
-        let fb = Framebuffer::new();
-        let fb_texture = Texture::<i32>::new()
-            .with_format(Format::Rgba)
-            .with_data(pixels.as_bytes(), self.texture.size());
-
-        let sprite = Sprite::new(fb_texture.size());
-        fb.attach_texture(&fb_texture);
-
-        self.fb = Some((fb, fb_texture, sprite));
-        self.should_save = true;
+                eprintln!("{:?}", res);
+            }
+            _ => {}
+        }
     }
 }

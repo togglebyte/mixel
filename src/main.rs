@@ -31,7 +31,7 @@ fn run() -> Result<()> {
     eventloop.run(move |event| {
         match event {
             Event::Char(c) => {
-                if let Command::Quit = app.update_input(c) {
+                if let Command::Quit = app.update_input(c, &mut context) {
                     return LoopAction::Quit;
                 }
                 app.input(c);
