@@ -157,6 +157,9 @@ impl Canvas {
         Ok(inst)
     }
 
+    // -----------------------------------------------------------------------------
+    //     - Render -
+    // -----------------------------------------------------------------------------
     pub fn render(&mut self, context: &mut Context) {
         let vertex_data = [self.sprite.vertex_data()];
 
@@ -182,6 +185,9 @@ impl Canvas {
         }
     }
 
+    // -----------------------------------------------------------------------------
+    //     - Move cursor -
+    // -----------------------------------------------------------------------------
     pub fn move_cursor(&mut self, move_by: Position<i32>) {
         // Put the old pixel back
         let draw_at = self.cursor.position;
@@ -197,11 +203,17 @@ impl Canvas {
         let draw_at = self.cursor.position;
         let pixel = self.cursor.color;
         self.pix_buf.push(pixel);
-        self.cursor_texture
-            .write_region(draw_at, Size::new(1, 1), self.pix_buf.as_bytes());
+        self.cursor_texture.write_region(
+            draw_at,
+            Size::new(1, 1),
+            self.pix_buf.as_bytes()
+        );
         self.pix_buf.clear();
     }
 
+    // -----------------------------------------------------------------------------
+    //     - Draw cursor -
+    // -----------------------------------------------------------------------------
     pub fn draw(&mut self) {
         // Put a new pixel in place
         let draw_at = self.cursor.position;
@@ -212,6 +224,9 @@ impl Canvas {
         self.pix_buf.clear();
     }
 
+    // -----------------------------------------------------------------------------
+    //     - Input handling -
+    // -----------------------------------------------------------------------------
     pub fn input(&mut self, c: char, mode: Mode, input: &InputHandler) {
         match mode {
             Mode::Command => return,
@@ -246,7 +261,7 @@ impl Canvas {
                     &self.textures,
                     &self.viewport,
                     path,
-                    context
+                    context,
                 );
 
                 eprintln!("{:?}", res);
