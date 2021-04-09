@@ -86,7 +86,7 @@ impl Cursor {
 }
 
 pub struct Canvas {
-    textures: Vec<Texture<i32>>,
+    layers: Vec<Texture<i32>>,
     layer: usize,
     renderer: Renderer<VertexData>,
     sprite: Sprite<i32>,
@@ -128,8 +128,7 @@ impl Canvas {
 
         let mut sprite = Sprite::new(texture.size());
         sprite.z_index = 10;
-        sprite.position =
-            window_size.to_vector() / 2 / renderer.pixel_size as i32 - sprite.size.to_vector() / 2;
+        sprite.position = window_size.to_vector() / 2 / renderer.pixel_size as i32 - sprite.size.to_vector() / 2;
 
         let mut cursor_sprite = sprite;
         cursor_sprite.z_index = 9;
@@ -137,7 +136,7 @@ impl Canvas {
         let save_buffer = SaveBuffer::new(size, context)?;
 
         let mut inst = Self {
-            textures: vec![texture],
+            layers: vec![texture],
             layer: 0,
             cursor_texture,
             sprite,
@@ -163,7 +162,7 @@ impl Canvas {
     pub fn render(&mut self, context: &mut Context) {
         let vertex_data = [self.sprite.vertex_data()];
 
-        self.textures.iter().for_each(|t| {
+        self.layers.iter().for_each(|t| {
             let res = self
                 .renderer
                 .render(t, &vertex_data, &self.viewport, context);
@@ -219,7 +218,7 @@ impl Canvas {
         let draw_at = self.cursor.position;
         let pixel = Color::white().into();
         self.pix_buf.push(pixel);
-        let texture = &self.textures[self.layer];
+        let texture = &self.layers[self.layer];
         texture.write_region(draw_at, Size::new(1, 1), self.pix_buf.as_bytes());
         self.pix_buf.clear();
     }
@@ -258,7 +257,7 @@ impl Canvas {
             Command::Write(path) => {
                 let res = self.save_buffer.save(
                     &self.sprite,
-                    &self.textures,
+                    &self.layers,
                     &self.viewport,
                     path,
                     context,
